@@ -5,9 +5,9 @@ fn main() {
     //day01::run();
     //day02::run();
     //day03::run();
-    day04::run();
+    //day04::run();
     //day05::run();
-    //day06::run();
+    day06::run();
     //day07::run();
     //day08::run();
     //day09::run();
@@ -28,4 +28,3 @@ fn main() {
     //day24::run();
     //day25::run();
 }
-
