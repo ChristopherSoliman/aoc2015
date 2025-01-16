@@ -1,110 +1,137 @@
-use std::collections::{BinaryHeap, HashMap, HashSet};
-
-#[derive(Debug, Eq, PartialEq)]
-struct State {
-    current: String,
-    similarity: usize,
-    swaps: usize,
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.similarity.cmp(&other.similarity))
-    }
-}
-
-impl Ord for State {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.similarity.cmp(&other.similarity)
-    }
-}
+use std::os::windows::process;
 
 pub fn run(path: &str) -> usize {
     let input = std::fs::read_to_string(path).expect("File should be there");
+    let input = input
+        .replace("Rn", "(")
+        .replace("Ar", ")")
+        .replace("Y", ",");
 
-    let (swaps_list, molecule) = input.split_once("\r\n\r\n").unwrap();
+    let (swap_lines, molecule) = input.split_once("\r\n\r\n").unwrap();
     let molecule = molecule.trim();
-
-    let mut swap_keys: HashSet<String> = HashSet::new();
-    let swaps: Vec<(String, String)> = swaps_list
+    let swaps = swap_lines
         .lines()
         .map(|l| {
             let (a, b) = l.split_once(" => ").unwrap();
-            swap_keys.insert(a.to_string());
             (a.trim().to_string(), b.trim().to_string())
         })
-        .collect();
+        .collect::<Vec<_>>();
 
-    let mut q = BinaryHeap::from(vec![State {
-        current: "e".to_string(),
-        similarity: 0,
-        swaps: 0,
-    }]);
+    let groups = get_groups(molecule);
+    let mut steps = 0;
+    let (a, b) = simplify_group(molecule, &swaps);
+    //for group in &groups
+    //    println!("{group}");
+    //    let (_, ds) = simplify_group(group, &swaps);
+    //    steps += ds;
+    //}
 
-    let mut seen: HashSet<(String, usize)> = HashSet::new();
-
-    while let Some(state) = q.pop() {
-        //if seen.len() % 100 == 0 {
-        //    println!("{}", state.current);
-        //}
-        if state.similarity == molecule.len() {
-            return state.swaps;
-        }
-        seen.insert((state.current.clone(), state.similarity));
-        let (pre, suf) = state.current.split_at(state.similarity);
-
-        // get possible swaps
-        let mut swapable: Vec<(String, usize)> = vec![];
-        let chars = suf.chars().collect::<Vec<_>>();
-        let mut i = 0;
-        while i < chars.len() {
-            if chars[i].is_uppercase() || chars[i] == 'e' {
-                let mut elem = String::from(chars[i]);
-                if i + 1 < chars.len() && chars[i + 1].is_lowercase() {
-                    elem.push(chars[i + 1]);
-                    i += 1;
-                }
-                if swap_keys.contains(&elem) {
-                    swapable.push((elem, i));
-                }
-            }
-            i += 1;
-        }
-
-        //make swaps
-        for s in &swapable {
-            for poss in &swaps {
-                if poss.0 == s.0 {
-                    let (t_pre, t_suf) = suf.split_at(s.1);
-                    let t_suf = t_suf.replacen(&poss.0, &poss.1, 1);
-                    let n_str = pre.to_string() + &t_pre + &t_suf;
-                    let sim = compare(&n_str, molecule);
-                    if seen.contains(&(n_str.clone(), sim)) {
-                        continue;
-                    }
-                    q.push(State {
-                        current: n_str,
-                        similarity: sim,
-                        swaps: state.swaps + 1,
-                    });
-                }
-            }
-        }
-    }
-    panic!("no solution found");
+    steps as usize + groups.len() - 1
 }
 
-pub fn compare(a: &str, b: &str) -> usize {
-    let mut sum = 0;
-    for i in 0..a.len() {
-        if i >= b.len() {
-            break;
-        }
-        if a.chars().nth(i) == b.chars().nth(i) {
-            sum += 1;
-        } else {
-            break;
+fn simplify_group(group: &str, swaps: &Vec<(String, String)>) -> (String, u32) {
+    println!("Processing: {group}");
+    if is_element(group) {
+        return (group.to_string(), 0);
+    }
+
+    //for swap in swaps {
+    //    if *group == swap.1 {
+    //        return (swap.0.clone(), 1);
+    //    }
+    //}
+
+    let mut steps = 0;
+    let mut groups = get_groups(group);
+    println!("{:?}", groups);
+
+    for i in 0..groups.len() {
+        if let Some(k) = groups[i].find("(") {
+            let (pre, suf) = groups[i].split_at(k + 1);
+            let suf = &suf[0..suf.len() - 1];
+            let comma_groups = suf.split(",");
+            let simplified = comma_groups
+                .map(|cg| {
+                    let (n_cg, ds) = simplify_group(&cg.to_string(), swaps);
+                    println!("{n_cg}");
+                    steps += ds;
+                    n_cg
+                })
+                .collect::<Vec<_>>();
+            groups[i] = pre.to_string() + &simplified.join(",") + ")";
+            println!("New group: {}", groups[i]);
         }
     }
-    sum
+
+    //let mut groups = get_groups(&new_str);
+
+    while groups.len() > 1 {
+        let (new_a, ds_a) = simplify_group(&groups.remove(0), swaps);
+        let (new_b, ds_b) = simplify_group(&groups.remove(0), swaps);
+
+        steps += ds_a + ds_b;
+        let combo = new_a + &new_b;
+        for swap in swaps {
+            if swap.1 == combo {
+                //combo = swap.0.clone();
+                groups.insert(0, swap.0.clone());
+                steps += 1;
+            }
+        }
+        //new_str = combo + &groups.join("");
+        //groups = get_groups(&new_str);
+    }
+
+    println!("result: {:?}", groups.join(","));
+    (groups.join(","), steps)
+}
+
+fn is_element(test: &str) -> bool {
+    let mut uppercase = false;
+    for char in test.chars() {
+        if char.is_uppercase() {
+            if !uppercase {
+                uppercase = true;
+            } else {
+                return false;
+            }
+        }
+        if char == '(' {
+            return false;
+        }
+    }
+    true
+}
+
+fn get_groups(molecule: &str) -> Vec<String> {
+    let m_chars = molecule.chars().collect::<Vec<_>>();
+    let mut i = 0;
+    let mut groups = vec![];
+    let mut current_group = String::new();
+    let mut bracket = 0;
+    while i < m_chars.len() {
+        if bracket == 0 && m_chars[i].is_uppercase() {
+            if !current_group.is_empty() {
+                groups.push(current_group.clone());
+                current_group.clear();
+            }
+            current_group.push(m_chars[i]);
+            if i + 1 < m_chars.len() && m_chars[i + 1].is_lowercase() {
+                current_group.push(m_chars[i + 1]);
+                i += 1;
+            }
+        } else {
+            if m_chars[i] == '(' {
+                bracket += 1;
+            } else if m_chars[i] == ')' {
+                bracket -= 1;
+            }
+            current_group.push(m_chars[i]);
+        }
+        i += 1;
+    }
+    if !current_group.is_empty() {
+        groups.push(current_group);
+    }
+    groups
 }
