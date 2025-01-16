@@ -1,5 +1,3 @@
-use std::os::windows::process;
-
 pub fn run(path: &str) -> usize {
     let input = std::fs::read_to_string(path).expect("File should be there");
     let input = input
@@ -18,32 +16,14 @@ pub fn run(path: &str) -> usize {
         .collect::<Vec<_>>();
 
     let groups = get_groups(molecule);
-    let mut steps = 0;
-    let (a, b) = simplify_group(molecule, &swaps);
-    //for group in &groups
-    //    println!("{group}");
-    //    let (_, ds) = simplify_group(group, &swaps);
-    //    steps += ds;
-    //}
+    let (_, steps) = simplify_group(molecule, &swaps);
 
     steps as usize + groups.len() - 1
 }
 
 fn simplify_group(group: &str, swaps: &Vec<(String, String)>) -> (String, u32) {
-    println!("Processing: {group}");
-    if is_element(group) {
-        return (group.to_string(), 0);
-    }
-
-    //for swap in swaps {
-    //    if *group == swap.1 {
-    //        return (swap.0.clone(), 1);
-    //    }
-    //}
-
     let mut steps = 0;
     let mut groups = get_groups(group);
-    println!("{:?}", groups);
 
     for i in 0..groups.len() {
         if let Some(k) = groups[i].find("(") {
@@ -53,17 +33,13 @@ fn simplify_group(group: &str, swaps: &Vec<(String, String)>) -> (String, u32) {
             let simplified = comma_groups
                 .map(|cg| {
                     let (n_cg, ds) = simplify_group(&cg.to_string(), swaps);
-                    println!("{n_cg}");
                     steps += ds;
                     n_cg
                 })
                 .collect::<Vec<_>>();
             groups[i] = pre.to_string() + &simplified.join(",") + ")";
-            println!("New group: {}", groups[i]);
         }
     }
-
-    //let mut groups = get_groups(&new_str);
 
     while groups.len() > 1 {
         let (new_a, ds_a) = simplify_group(&groups.remove(0), swaps);
@@ -73,34 +49,14 @@ fn simplify_group(group: &str, swaps: &Vec<(String, String)>) -> (String, u32) {
         let combo = new_a + &new_b;
         for swap in swaps {
             if swap.1 == combo {
-                //combo = swap.0.clone();
                 groups.insert(0, swap.0.clone());
                 steps += 1;
+                break;
             }
         }
-        //new_str = combo + &groups.join("");
-        //groups = get_groups(&new_str);
     }
 
-    println!("result: {:?}", groups.join(","));
     (groups.join(","), steps)
-}
-
-fn is_element(test: &str) -> bool {
-    let mut uppercase = false;
-    for char in test.chars() {
-        if char.is_uppercase() {
-            if !uppercase {
-                uppercase = true;
-            } else {
-                return false;
-            }
-        }
-        if char == '(' {
-            return false;
-        }
-    }
-    true
 }
 
 fn get_groups(molecule: &str) -> Vec<String> {
@@ -127,6 +83,10 @@ fn get_groups(molecule: &str) -> Vec<String> {
                 bracket -= 1;
             }
             current_group.push(m_chars[i]);
+            if bracket == 0 {
+                groups.push(current_group.clone());
+                current_group.clear();
+            }
         }
         i += 1;
     }
