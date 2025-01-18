@@ -146,7 +146,7 @@ fn djikstras() -> usize {
                 continue;
             }
             for sp in &state.spells {
-                if sp.name == spell {
+                if sp.name == spell && sp.turns_remaining != 1 {
                     continue 'spells_loop;
                 }
             }
