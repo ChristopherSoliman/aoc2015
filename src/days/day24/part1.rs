@@ -46,7 +46,6 @@ pub fn run(path: &str) -> usize {
             }
             q.push(v);
         }
-        q.sort_by_key(|v| v.len());
     }
     options
         .iter()
