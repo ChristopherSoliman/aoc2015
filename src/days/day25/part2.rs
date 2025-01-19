@@ -1,3 +1,3 @@
-pub fn run(path: &str) -> u32 {
+pub fn run() -> u32 {
     0
 }
